@@ -1,3 +1,4 @@
+{{- if .Values.hubble.enabled }}
 apiVersion: monitoring.coreos.com/v1alpha1
 kind: ScrapeConfig
 metadata:
@@ -59,3 +60,4 @@ spec:
     targetLabel: __metrics_path__
     replacement: /api/v1/namespaces/kube-system/pods/${1}:9091/proxy/metrics
     action: replace
+{{- end }}

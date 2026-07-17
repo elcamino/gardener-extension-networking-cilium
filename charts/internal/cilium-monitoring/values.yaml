@@ -68,3 +68,9 @@ allowedMetrics:
   ciliumOperator:
   - cilium_operator_process_cpu_seconds_total
   - cilium_operator_process_resident_memory_bytes
+
+# hubble controls whether the Hubble-specific monitoring objects (e.g. the
+# shoot-cilium-hubble ScrapeConfig) are rendered. This is set by the extension
+# actuator based on the Hubble feature toggle of the NetworkConfig.
+hubble:
+  enabled: true

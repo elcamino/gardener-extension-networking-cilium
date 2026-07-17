@@ -43,7 +43,7 @@ const (
 	ShootWebhooksResourceName = "extension-cilium-shoot-webhooks"
 )
 
-func applyMonitoringConfig(ctx context.Context, seedClient client.Client, chartApplier gardenerkubernetes.ChartApplier, network *extensionsv1alpha1.Network, deleteChart bool) error {
+func applyMonitoringConfig(ctx context.Context, seedClient client.Client, chartApplier gardenerkubernetes.ChartApplier, network *extensionsv1alpha1.Network, hubbleEnabled, deleteChart bool) error {
 	ciliumControlPlaneMonitoringChart := &chart.Chart{
 		Name:       cilium.MonitoringName,
 		EmbeddedFS: charts.InternalChart,
@@ -80,7 +80,12 @@ func applyMonitoringConfig(ctx context.Context, seedClient client.Client, chartA
 		return client.IgnoreNotFound(ciliumControlPlaneMonitoringChart.Delete(ctx, seedClient, network.Namespace))
 	}
 
-	return ciliumControlPlaneMonitoringChart.Apply(ctx, chartApplier, network.Namespace, nil, "", "", nil)
+	values, err := chartspkg.ComputeMonitoringConfigValues(hubbleEnabled)
+	if err != nil {
+		return fmt.Errorf("error computing monitoring chart values: %w", err)
+	}
+
+	return ciliumControlPlaneMonitoringChart.Apply(ctx, chartApplier, network.Namespace, nil, "", "", values)
 }
 
 // Reconcile implements Network.Actuator.
@@ -198,7 +203,7 @@ func (a *actuator) Reconcile(ctx context.Context, _ logr.Logger, network *extens
 		return err
 	}
 
-	if err := applyMonitoringConfig(ctx, a.client, a.chartApplier, network, false); err != nil {
+	if err := applyMonitoringConfig(ctx, a.client, a.chartApplier, network, networkConfig.Hubble != nil && networkConfig.Hubble.Enabled, false); err != nil {
 		return err
 	}
 

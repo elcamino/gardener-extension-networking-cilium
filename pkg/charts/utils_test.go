@@ -49,6 +49,22 @@ var _ = Describe("#applyEncryptionConfig", func() {
 	})
 })
 
+var _ = Describe("#ComputeMonitoringConfigValues", func() {
+	Describe("hubble toggle", func() {
+		It("should marshal hubble enabled as a nested values map", func() {
+			values, err := ComputeMonitoringConfigValues(true)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(values).To(Equal(map[string]any{"hubble": map[string]any{"enabled": true}}))
+		})
+
+		It("should marshal hubble disabled as a nested values map", func() {
+			values, err := ComputeMonitoringConfigValues(false)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(values).To(Equal(map[string]any{"hubble": map[string]any{"enabled": false}}))
+		})
+	})
+})
+
 var _ = Describe("#generateChartValues", func() {
 	Describe("hubble", func() {
 		var config *ciliumv1alpha1.NetworkConfig

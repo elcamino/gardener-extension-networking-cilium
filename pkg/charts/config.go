@@ -9,6 +9,11 @@ type ciliumConfig struct {
 	Global       globalConfig       `json:"global"`
 }
 
+// monitoringConfig holds the values for the cilium-monitoring chart.
+type monitoringConfig struct {
+	Hubble hubble `json:"hubble"`
+}
+
 type requirementsConfig struct {
 	Agent     agent     `json:"agent"`
 	Config    config    `json:"config"`

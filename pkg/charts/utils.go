@@ -12,6 +12,7 @@ import (
 	extensionscontroller "github.com/gardener/gardener/extensions/pkg/controller"
 	"github.com/gardener/gardener/pkg/api/core/v1beta1/helper"
 	extensionsv1alpha1 "github.com/gardener/gardener/pkg/apis/extensions/v1alpha1"
+	"github.com/gardener/gardener/pkg/utils"
 
 	"github.com/gardener/gardener-extension-networking-cilium/imagevector"
 	ciliumv1alpha1 "github.com/gardener/gardener-extension-networking-cilium/pkg/apis/cilium/v1alpha1"
@@ -156,6 +157,11 @@ func ComputeCiliumChartValues(config *ciliumv1alpha1.NetworkConfig, network *ext
 		Requirements: requirementsConfig,
 		Global:       globalConfig,
 	}, nil
+}
+
+// ComputeMonitoringConfigValues computes the values for the cilium-monitoring chart.
+func ComputeMonitoringConfigValues(hubbleEnabled bool) (map[string]any, error) {
+	return utils.ToValuesMap(monitoringConfig{Hubble: hubble{Enabled: hubbleEnabled}})
 }
 
 func generateChartValues(config *ciliumv1alpha1.NetworkConfig, network *extensionsv1alpha1.Network, cluster *extensionscontroller.Cluster, ipamMode, configMapHash, configMapLabelPrefixHash string) (requirementsConfig, globalConfig, error) {

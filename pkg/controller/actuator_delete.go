@@ -19,7 +19,7 @@ import (
 // Delete implements Network.Actuator.
 func (a *actuator) Delete(ctx context.Context, _ logr.Logger, network *extensionsv1alpha1.Network, cluster *extensionscontroller.Cluster) error {
 	// First delete the monitoring configuration
-	if err := applyMonitoringConfig(ctx, a.client, a.chartApplier, network, true); err != nil {
+	if err := applyMonitoringConfig(ctx, a.client, a.chartApplier, network, false, true); err != nil {
 		return err
 	}
 
