@@ -34,8 +34,19 @@ const (
 	// KubeProxyImageName defines the kube-proxy image name.
 	KubeProxyImageName = "kube-proxy"
 
-	// MonitoringChartName
+	// MonitoringName is the name of the cilium monitoring chart.
 	MonitoringName = "cilium-monitoring-config"
+
+	// DashboardsConfigMapName is the name of the ConfigMap containing the cilium dashboards.
+	DashboardsConfigMapName = "cilium-dashboards"
+	// AgentScrapeConfigName is the name of the ScrapeConfig for the cilium agent metrics.
+	AgentScrapeConfigName = "shoot-cilium-agent"
+	// HubbleScrapeConfigName is the name of the ScrapeConfig for the Hubble metrics.
+	HubbleScrapeConfigName = "shoot-cilium-hubble"
+	// OperatorScrapeConfigName is the name of the ScrapeConfig for the cilium operator metrics.
+	OperatorScrapeConfigName = "shoot-cilium-operator"
+	// AgentPrometheusRuleName is the name of the PrometheusRule for the cilium agent.
+	AgentPrometheusRuleName = "shoot-cilium-agent"
 
 	// ReleaseName is the name of the Cilium Release.
 	ReleaseName = "cilium"

@@ -16,6 +16,7 @@ import (
 
 	"github.com/gardener/gardener-extension-networking-cilium/imagevector"
 	ciliumv1alpha1 "github.com/gardener/gardener-extension-networking-cilium/pkg/apis/cilium/v1alpha1"
+	ciliumhelper "github.com/gardener/gardener-extension-networking-cilium/pkg/apis/cilium/v1alpha1/helper"
 	"github.com/gardener/gardener-extension-networking-cilium/pkg/cilium"
 )
 
@@ -159,8 +160,8 @@ func ComputeCiliumChartValues(config *ciliumv1alpha1.NetworkConfig, network *ext
 	}, nil
 }
 
-// ComputeMonitoringConfigValues computes the values for the cilium-monitoring chart.
-func ComputeMonitoringConfigValues(hubbleEnabled bool) (map[string]any, error) {
+// ComputeMonitoringChartValues computes the values for the cilium-monitoring chart.
+func ComputeMonitoringChartValues(hubbleEnabled bool) (map[string]any, error) {
 	return utils.ToValuesMap(monitoringConfig{Hubble: hubble{Enabled: hubbleEnabled}})
 }
 
@@ -232,10 +233,9 @@ func generateChartValues(config *ciliumv1alpha1.NetworkConfig, network *extensio
 		return requirementsConfig, globalConfig, nil
 	}
 
-	if config.Hubble != nil {
-		requirementsConfig.Hubble.Enabled = config.Hubble.Enabled
-		globalConfig.Hubble.Enabled = config.Hubble.Enabled
-	}
+	hubbleEnabled := ciliumhelper.HubbleEnabled(config)
+	requirementsConfig.Hubble.Enabled = hubbleEnabled
+	globalConfig.Hubble.Enabled = hubbleEnabled
 
 	// If ETCD enabled
 	if config.Store != nil {

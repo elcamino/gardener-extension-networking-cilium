@@ -32,6 +32,7 @@ import (
 
 	"github.com/gardener/gardener-extension-networking-cilium/charts"
 	ciliumv1alpha1 "github.com/gardener/gardener-extension-networking-cilium/pkg/apis/cilium/v1alpha1"
+	ciliumhelper "github.com/gardener/gardener-extension-networking-cilium/pkg/apis/cilium/v1alpha1/helper"
 	chartspkg "github.com/gardener/gardener-extension-networking-cilium/pkg/charts"
 	"github.com/gardener/gardener-extension-networking-cilium/pkg/cilium"
 )
@@ -43,49 +44,50 @@ const (
 	ShootWebhooksResourceName = "extension-cilium-shoot-webhooks"
 )
 
-func applyMonitoringConfig(ctx context.Context, seedClient client.Client, chartApplier gardenerkubernetes.ChartApplier, network *extensionsv1alpha1.Network, hubbleEnabled, deleteChart bool) error {
-	ciliumControlPlaneMonitoringChart := &chart.Chart{
+var (
+	// hubbleScrapeConfig is the ScrapeConfig which is only deployed if Hubble is enabled.
+	hubbleScrapeConfig = &chart.Object{Type: &monitoringv1alpha1.ScrapeConfig{}, Name: cilium.HubbleScrapeConfigName}
+
+	// ciliumMonitoringChart is the monitoring chart deployed into the shoot namespace in the seed.
+	ciliumMonitoringChart = &chart.Chart{
 		Name:       cilium.MonitoringName,
 		EmbeddedFS: charts.InternalChart,
 		Path:       cilium.CiliumMonitoringChartPath,
 		Objects: []*chart.Object{
-			{
-				Type: &corev1.ConfigMap{},
-				Name: cilium.MonitoringName,
-			},
-			{
-				Type: &corev1.ConfigMap{},
-				Name: "cilium-dashboards",
-			},
-			{
-				Type: &monitoringv1alpha1.ScrapeConfig{},
-				Name: "shoot-cilium-agent",
-			},
-			{
-				Type: &monitoringv1alpha1.ScrapeConfig{},
-				Name: "shoot-cilium-hubble",
-			},
-			{
-				Type: &monitoringv1alpha1.ScrapeConfig{},
-				Name: "shoot-cilium-operator",
-			},
-			{
-				Type: &monitoringv1.PrometheusRule{},
-				Name: "shoot-cilium-agent",
-			},
+			{Type: &corev1.ConfigMap{}, Name: cilium.MonitoringName},
+			{Type: &corev1.ConfigMap{}, Name: cilium.DashboardsConfigMapName},
+			{Type: &monitoringv1alpha1.ScrapeConfig{}, Name: cilium.AgentScrapeConfigName},
+			hubbleScrapeConfig,
+			{Type: &monitoringv1alpha1.ScrapeConfig{}, Name: cilium.OperatorScrapeConfigName},
+			{Type: &monitoringv1.PrometheusRule{}, Name: cilium.AgentPrometheusRuleName},
 		},
 	}
+)
 
-	if deleteChart {
-		return client.IgnoreNotFound(ciliumControlPlaneMonitoringChart.Delete(ctx, seedClient, network.Namespace))
-	}
-
-	values, err := chartspkg.ComputeMonitoringConfigValues(hubbleEnabled)
+func applyMonitoringConfig(ctx context.Context, seedClient client.Client, chartApplier gardenerkubernetes.ChartApplier, network *extensionsv1alpha1.Network, hubbleEnabled bool) error {
+	values, err := chartspkg.ComputeMonitoringChartValues(hubbleEnabled)
 	if err != nil {
-		return fmt.Errorf("error computing monitoring chart values: %w", err)
+		return fmt.Errorf("could not compute monitoring chart values: %w", err)
 	}
 
-	return ciliumControlPlaneMonitoringChart.Apply(ctx, chartApplier, network.Namespace, nil, "", "", values)
+	if err := ciliumMonitoringChart.Apply(ctx, chartApplier, network.Namespace, nil, "", "", values); err != nil {
+		return err
+	}
+
+	if !hubbleEnabled {
+		// The chart applier only applies the rendered objects, it does not prune objects which
+		// vanished from the rendering. Hence, the ScrapeConfig of a shoot whose Hubble was
+		// disabled must be deleted explicitly. Delete tolerates NotFound.
+		if err := hubbleScrapeConfig.Delete(ctx, seedClient, network.Namespace); err != nil {
+			return fmt.Errorf("could not delete %s scrape config: %w", cilium.HubbleScrapeConfigName, err)
+		}
+	}
+
+	return nil
+}
+
+func deleteMonitoringConfig(ctx context.Context, seedClient client.Client, network *extensionsv1alpha1.Network) error {
+	return client.IgnoreNotFound(ciliumMonitoringChart.Delete(ctx, seedClient, network.Namespace))
 }
 
 // Reconcile implements Network.Actuator.
@@ -203,7 +205,7 @@ func (a *actuator) Reconcile(ctx context.Context, _ logr.Logger, network *extens
 		return err
 	}
 
-	if err := applyMonitoringConfig(ctx, a.client, a.chartApplier, network, networkConfig.Hubble != nil && networkConfig.Hubble.Enabled, false); err != nil {
+	if err := applyMonitoringConfig(ctx, a.client, a.chartApplier, network, ciliumhelper.HubbleEnabled(networkConfig)); err != nil {
 		return err
 	}
 
