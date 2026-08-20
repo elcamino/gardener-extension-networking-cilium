@@ -26,7 +26,7 @@ spec:
     namespaces:
       names:
       - kube-system
-    role: Endpoints
+    role: Pod
     tlsConfig:
       # This is needed because we do not fetch the correct cluster CA bundle right now
       insecureSkipVerify: true
@@ -39,9 +39,12 @@ spec:
   - action: replace
     replacement: hubble-metrics
     targetLabel: job
-  - sourceLabels: [__meta_kubernetes_pod_label_k8s_app,__meta_kubernetes_service_annotation_prometheus_io_scrape]
+  # Selecting the cilium-agent pods by label is sufficient here: this ScrapeConfig only
+  # exists while Hubble is enabled, and the Hubble metrics port is fixed, so no service
+  # or pod annotation is needed to find the targets.
+  - sourceLabels: [__meta_kubernetes_pod_label_k8s_app]
     separator: ;
-    regex: cilium;true
+    regex: cilium
     replacement: $1
     action: keep
   - action: labelmap

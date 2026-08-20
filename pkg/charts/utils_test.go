@@ -9,7 +9,7 @@ import (
 	"github.com/gardener/gardener/pkg/extensions"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
-	corev1 "k8s.io/api/core/v1"
+	appsv1 "k8s.io/api/apps/v1"
 	"k8s.io/apimachinery/pkg/util/yaml"
 	"k8s.io/apimachinery/pkg/version"
 
@@ -119,28 +119,35 @@ var _ = Describe("cilium-monitoring chart", func() {
 			Expect(manifest).NotTo(ContainSubstring("name: " + cilium.HubbleScrapeConfigName))
 			Expect(manifest).To(ContainSubstring("name: " + cilium.AgentScrapeConfigName))
 		})
+
+		It("should discover its targets without relying on a service annotation", func() {
+			// A service based discovery couples the scrape configs to the hubble-metrics service,
+			// which only exists while Hubble is enabled.
+			Expect(render(true)).NotTo(ContainSubstring("__meta_kubernetes_service_annotation"))
+		})
 	})
 })
 
-// scrapeAnnotatedCiliumServices returns the names of all Services in the given manifest which carry
-// the annotation prometheus.io/scrape=true and select the cilium agent pods. These Services are the
-// only source of Endpoints for the endpoint based ScrapeConfigs of the cilium-monitoring chart, so
-// at least one of them must exist independently of the Hubble feature toggle.
-func scrapeAnnotatedCiliumServices(manifest string) []string {
+// scrapeAnnotatedCiliumDaemonSets returns the names of all DaemonSets in the given manifest whose
+// pod template carries the label k8s-app=cilium together with the annotation
+// prometheus.io/scrape=true. The shoot-cilium-agent ScrapeConfig keeps exactly those pods as its
+// targets, so the cilium chart must render them independently of the Hubble feature toggle.
+func scrapeAnnotatedCiliumDaemonSets(manifest string) []string {
 	var names []string
 
 	for _, document := range strings.Split(manifest, "\n---") {
-		service := &corev1.Service{}
-		if err := yaml.Unmarshal([]byte(document), service); err != nil {
+		daemonSet := &appsv1.DaemonSet{}
+		if err := yaml.Unmarshal([]byte(document), daemonSet); err != nil {
 			continue
 		}
 
-		if service.Kind != "Service" {
+		if daemonSet.Kind != "DaemonSet" {
 			continue
 		}
 
-		if service.Annotations["prometheus.io/scrape"] == "true" && service.Spec.Selector["k8s-app"] == "cilium" {
-			names = append(names, service.Name)
+		podTemplate := daemonSet.Spec.Template.ObjectMeta
+		if podTemplate.Labels["k8s-app"] == "cilium" && podTemplate.Annotations["prometheus.io/scrape"] == "true" {
+			names = append(names, daemonSet.Name)
 		}
 	}
 
@@ -160,13 +167,13 @@ var _ = Describe("#RenderCiliumChart", func() {
 			return string(manifest)
 		}
 
-		It("should keep a scrape annotated service in front of the cilium pods if hubble is enabled", func() {
-			Expect(scrapeAnnotatedCiliumServices(render(true))).NotTo(BeEmpty())
+		It("should annotate the cilium agent pods for scraping if hubble is enabled", func() {
+			Expect(scrapeAnnotatedCiliumDaemonSets(render(true))).NotTo(BeEmpty())
 		})
 
-		It("should keep a scrape annotated service in front of the cilium pods if hubble is disabled", func() {
-			Expect(scrapeAnnotatedCiliumServices(render(false))).NotTo(BeEmpty(),
-				"no service with prometheus.io/scrape=true selects the cilium agent pods, the %s scrape config will not find any target", cilium.AgentScrapeConfigName)
+		It("should annotate the cilium agent pods for scraping if hubble is disabled", func() {
+			Expect(scrapeAnnotatedCiliumDaemonSets(render(false))).NotTo(BeEmpty(),
+				"no pod carries k8s-app=cilium together with prometheus.io/scrape=true, the %s scrape config will not find any target", cilium.AgentScrapeConfigName)
 		})
 	})
 })

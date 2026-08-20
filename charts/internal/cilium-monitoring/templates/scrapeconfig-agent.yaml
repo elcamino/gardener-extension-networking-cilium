@@ -25,7 +25,7 @@ spec:
     namespaces:
       names:
       - kube-system
-    role: Endpoints
+    role: Pod
     tlsConfig:
       # This is needed because we do not fetch the correct cluster CA bundle right now
       insecureSkipVerify: true
@@ -38,7 +38,11 @@ spec:
   - action: replace
     replacement: cilium-agent-metrics
     targetLabel: job
-  - sourceLabels: [__meta_kubernetes_pod_label_k8s_app,__meta_kubernetes_service_annotation_prometheus_io_scrape]
+  # The cilium-agent pods are annotated with prometheus.io/scrape and prometheus.io/port
+  # as long as the ServiceMonitor is not used, see the agent daemonset. Do not switch this
+  # back to a service annotation: the only service in front of the cilium pods carrying
+  # prometheus.io/scrape is hubble-metrics, which only exists while Hubble is enabled.
+  - sourceLabels: [__meta_kubernetes_pod_label_k8s_app,__meta_kubernetes_pod_annotation_prometheus_io_scrape]
     separator: ;
     regex: cilium;true
     replacement: $1
@@ -53,9 +57,9 @@ spec:
     action: replace
   - targetLabel: __address__
     replacement: kube-apiserver:443
-  - sourceLabels: [__meta_kubernetes_pod_name]
+  - sourceLabels: [__meta_kubernetes_pod_name,__meta_kubernetes_pod_annotation_prometheus_io_port]
     separator: ;
-    regex: (.+)
+    regex: (.+);(.+)
     targetLabel: __metrics_path__
-    replacement: /api/v1/namespaces/kube-system/pods/${1}:9090/proxy/metrics
+    replacement: /api/v1/namespaces/kube-system/pods/${1}:${2}/proxy/metrics
     action: replace
